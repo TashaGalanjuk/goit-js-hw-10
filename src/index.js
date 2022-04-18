@@ -1,56 +1,60 @@
-// import './css/styles.css';
+import './css/styles.css';
 
 // const DEBOUNCE_DELAY = 300;
 
-import fetchCountries from './js/fetchCountries.js';
-import oneCounrtyArticle from './tamplates/oneCounrtyArticleTempl.hbs';
-import countriesList from './tamplates/countriesListTempl.hbs';
-import refs from './js/refs.js';
-const { list, article, form, input } = refs;
+import fetchCountries from './fetchCountries';
+import debounce from 'lodash.debounce';
+import { Notify } from 'notiflix/build/notiflix-notify-aio';
 
-import { alert, error, defaultModules } from '@pnotify/core/dist/PNotify.js';
-import * as PNotifyMobile from '@pnotify/mobile/dist/PNotifyMobile.js';
-import '@pnotify/core/dist/PNotify.css';
-import '@pnotify/core/dist/BrightTheme.css';
-defaultModules.set(PNotifyMobile, {});
+const DEBOUNCE_DELAY = 300;
 
-const debounce = require('lodash.debounce');
+const input = document.querySelector('#search-box');
+const countryList = document.querySelector('.country-list');
+const countryInfo = document.querySelector('.country-info');
 
-input.addEventListener('input', debounce(onSearch, 500));
+input.addEventListener('input', debounce(onInputChange, DEBOUNCE_DELAY));
 
-function onSearch(e) {
-  e.preventDefault();
-  const seachQuery = e.target.value;
-  
-clearArticlesContainer();
-  console.log(seachQuery)
-  
-  fetchCountries(seachQuery.trim())
-    .then(data => {
-      if (data.length === 1) {
-        counrtyArticleMarkup(data);
-      } else if (data.length <= 10) {
-        countriesListMarkup(data);
-      } else if (data.length > 10) {
-        errorSearch();
-      }
-    })
-    .catch(error => {
-      errorSearch();
-    })
-}
+function onInputChange() {
+  const isFilled = input.value.trim();
+  countryList.innerHTML = '';
+  countryInfo.innerHTML = '';
+  if (isFilled) {
+    fetchCountries(isFilled)
+      .then(dataProcessing)
+      .catch(error => {
+        Notify.failure('Oops, there is no country with that name');
+        console.log(error);
+      });
+  }
 
-function errorSearch() {
-  error({ text: 'Too many matches found. Please enter a more specific query!' });
-}
+  function dataProcessing(data) {
+    if (data.length > 10) {
+      Notify.info('Too many matches found. Please enter a more specific name.');
 
-function counrtyArticleMarkup(countries) {
-  article.insertAdjacentHTML('beforeend', oneCounrtyArticle(countries));
-}
-function countriesListMarkup(countries) {
-  list.insertAdjacentHTML('beforeend', countriesList(countries));
-}
-function clearArticlesContainer() {
-  list.innerHTML = '';
-  article.innerHTML = '';
+      return;
+    }
+
+    markup(data);
+  }
+
+  function markup(data) {
+    const markupData = data
+      .map(({ flags: { svg }, name: { official } }) => {
+        return `<li><img src="${svg}" alt="${official}" width="100" height="50"/>${official}</li>`;
+      })
+      .join('');
+
+    if (data.length === 1) {
+      const languages = Object.values(data[0].languages).join(', ');
+
+      const markupInfo = `<ul>
+      <li>Capital: ${data[0].capital}</li>
+      <li>Population: ${data[0].population}</li>
+      <li>Languages: ${languages}</li>
+      </ul>`;
+
+      countryInfo.insertAdjacentHTML('afterbegin', markupInfo);
+    }
+    return countryList.insertAdjacentHTML('afterbegin', markupData);
+  }
 }
